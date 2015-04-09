@@ -75,6 +75,10 @@ sudo bin/rebuild_metaphones data/geocode.db
 # build the indexes (will take a few hours)
 chmod +x build/build_indexes
 build/build_indexes data/geocode.db
+
+# cluster the tables to make teh database smaller and faster
+chmod +x build/build_cluster
+build/build_cluster geocode.db
 ```
 
 And now we're done building the datase. It's located at   /home/root/geocoder/data/geocode.db`  We'll copy this database to the web server that we build next.
@@ -87,8 +91,8 @@ Create an Ubuntu server with 512 Mb memory and login as root.
 Update the server
 ```
 apt-get update
-apt-get install -y ferm build-essential sqlite3 libsqlite3-dev flex bison unzip git ruby fail2ban nginx libssl-dev unattended-upgrades
-
+apt-get install -y ferm build-essential sqlite3 libsqlite3-dev flex bison unzip git ruby fail2ban nginx libssl-dev ruby1.9.1-dev unattended-upgrades
+gem install sqlite3 text bundler
 ```
 
 Add a new user called `dstk`. This user will be used to install the app and also run the web server
@@ -202,26 +206,58 @@ make
 sudo make install
 ```
 
+Copy the database file that was made earlier
+```
+cd ~/geocoder
+mkdir data
+cd data
+scp root@{database server ip}:geocoder/data/geocode.db geocode.db
+```
+
 Download and Install Dstk
 ```
 cd ~
 git clone https://github.com/paulyoder/dstk_street2coordinates
-```
-
-Copy the database file that was made earlier
-```
-
+cd dstk_street2coordinates
+bundle install --path vendor/bundle
 ```
 
 Setup Nginx
+
+Paste the following in `/etc/nginx/sites-available/dstk.conf`
 ```
-todo
+upstream app {
+	server unix:///home/dstk/dstk_street2coordinates/tmp/puma/socket;
+}
+
+server {
+	listen 80;
+	server_name your-server-domain.com;
+
+	root /home/dstk/dstk_street2coordinates/public;
+
+	location / {
+		try_files $uri @puma;
+	}
+
+	location @puma {
+		include proxy_params;
+		proxy_pass http://app;
+	}
+}
+
+```
+
+Now enable the site and restart nginx
+```
+sudo ln -s /etc/nginx/sites-available/dstk.conf /etc/nginx/sites-enabled/dstk.conf
+
+sudo service nginx restart
 ```
 
 Create an Upstart process to run the puma webserver
 
 ```
-su - deployer
 sudo vim /etc/init/dstk.conf
 # add the following lines to the file
 description	"dstk server"
@@ -235,9 +271,14 @@ respawn limit 10 5
 setuid dstk
 setgid dstk
 
-chdir /home/dstk/dstk
+chdir /home/dstk/dstk_street2coordinates
 
 exec bundle exec puma -C config/puma.rb
+```
+
+Start the service
+```
+sudo service dstk start
 ```
 
 Confirm it works!
