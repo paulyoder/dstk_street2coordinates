@@ -1,0 +1,103 @@
+---
+-  hosts: localhost
+   connection: local
+   roles:
+     - { role: enable_swap, swap_file_size: 4G }
+
+   tasks:
+     - name: update apt cache (if out of date)
+       #Updates it only every 4 hours
+       apt: update_cache=yes cache_valid_time={{ 60*60*4 }}
+       sudo: true
+
+     - name: install some basic packages via apt
+       sudo: true
+       #This installs/upgrades every item
+       apt: name={{ item }} state=latest
+       with_items:
+        - build-essential
+        - sqlite3
+        - libsqlite3-dev
+        - flex
+        - bison
+        - unzip
+        - lftp
+        - git
+        - ruby
+        - ruby1.9.1-dev
+
+     - name: install ruby gems
+       gem: name={{ item }} state=present
+       with_items:
+         - sqlite3
+         - text
+
+     - name: download geocoder
+       git:
+         repo: https://github.com/geocommons/geocoder.git
+         dest: ~/geocoder
+
+     - name: make geocoder
+       command: make
+       args:
+         chdir: ~/geocoder
+         creates: ~/geocoder/Geocoder-US-2.0.4.gem
+
+     - name: make install geocoder
+       command: make install
+       args:
+         chdir: ~/geocoder
+
+     - name: create download directory
+       file: path=~/tiger state=directory
+
+     - stat: path=~/geocoder/data/geocode.db
+       register: database_file
+
+     - name: download EDGES files (will take a while)
+       command: lftp ftp://ftp2.census.gov -e 'mirror /geo/tiger/TIGER2014/EDGES/ . --parallel=5 && exit'
+       args:
+         chdir: ~/tiger
+       when: database_file.stat.exists == False
+
+     - name: download FEATURES files (will take a while)
+       command: lftp ftp://ftp2.census.gov -e 'mirror /geo/tiger/TIGER2014/FEATNAMES/ . --parallel=5 && exit'
+       args:
+         chdir: ~/tiger
+       when: database_file.stat.exists == False
+
+     - name: download ADDRESS files (will take a while)
+       command: lftp ftp://ftp2.census.gov -e 'mirror /geo/tiger/TIGER2014/ADDR/ . --parallel=5 && exit'
+       args:
+         chdir: ~/tiger
+       when: database_file.stat.exists == False
+
+     - name: create database directory
+       file: path=~/geocoder/data state=directory
+
+     - name: build the database (will take a few hours)
+       command: ./tiger_import ../data/geocode.db ~/tiger/
+       args:
+         chdir: ~/geocoder/build
+         creates: ~/geocoder/data/geocode.db
+
+     - name: set file execution permissions
+       file: path=~/geocoder/build/{{ item }} mode=0775
+       with_items:
+         - build_indexes
+         - rebuild_cluster
+
+     - name: rebuild metaphones
+       command: bin/rebuild_metaphones data/geocode.db
+       args:
+         chdir: ~/geocoder
+
+     - name: build the indexes (will take a few hours)
+       command: build/build_indexes data/geocode.db
+       args:
+         chdir: ~/geocoder
+
+     - name: cluster the tables
+       command: build/rebuild_cluster data/geocode.db
+       args:
+         chdir: ~/geocoder
