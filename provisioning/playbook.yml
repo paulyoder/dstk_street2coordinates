@@ -54,19 +54,19 @@
      - stat: path=~/geocoder/data/geocode.db
        register: database_file
 
-     - name: download EDGES files (will take a while)
+     - name: download EDGES files (~12Gb of files)
        command: lftp ftp://ftp2.census.gov -e 'mirror /geo/tiger/TIGER2014/EDGES/ . --parallel=5 && exit'
        args:
          chdir: ~/tiger
        when: database_file.stat.exists == False
 
-     - name: download FEATURES files (will take a while)
+     - name: download FEATURES files (~1Gb of files)
        command: lftp ftp://ftp2.census.gov -e 'mirror /geo/tiger/TIGER2014/FEATNAMES/ . --parallel=5 && exit'
        args:
          chdir: ~/tiger
        when: database_file.stat.exists == False
 
-     - name: download ADDRESS files (will take a while)
+     - name: download ADDRESS files (~1Gb of files)
        command: lftp ftp://ftp2.census.gov -e 'mirror /geo/tiger/TIGER2014/ADDR/ . --parallel=5 && exit'
        args:
          chdir: ~/tiger
