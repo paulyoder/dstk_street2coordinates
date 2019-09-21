@@ -4,8 +4,8 @@ GEM
     json (1.8.2)
     puma (2.11.1)
       rack (>= 1.1, < 2.0)
-    rack (1.6.0)
-    rack-protection (1.5.3)
+    rack (1.6.11)
+    rack-protection (1.5.5)
       rack
     sinatra (1.4.5)
       rack (~> 1.4)
