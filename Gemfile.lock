@@ -1,7 +1,7 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    json (1.8.2)
+    json (2.3.0)
     puma (2.11.1)
       rack (>= 1.1, < 2.0)
     rack (1.6.0)
